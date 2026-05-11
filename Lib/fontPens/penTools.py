@@ -1,5 +1,4 @@
 import math
-
 from fontTools.misc.bezierTools import calcQuadraticArcLengthC
 
 
@@ -198,6 +197,111 @@ def interpolatePoint(pt1, pt2, v):
     return xa + (xb - xa) * xv, ya + (yb - ya) * yv
 
 
+def calcVector(point1, point2):
+    x1, y1 = point1
+    x2, y2 = point2
+    dx = x2 - x1
+    dy = y2 - y1
+    return dx, dy
+
+
+def calcAngle(point1, point2):
+    dx, dy = calcVector(point1, point2)
+    return atan2(dy, dx)
+
+
+def calcArea(points):
+    l = len(points)
+    area = 0
+    for i in range(l):
+        x1, y1 = points[i]
+        x2, y2 = points[(i+1)%l]
+        area += (x1*y2)-(x2*y1)
+    return area / 2
+
+
+def satellize(pos, angle, width, shift=0.5):
+    x, y = pos
+    x1, y1 = polarCoord((x, y), angle, width*shift)
+    x2, y2 = polarCoord((x, y), angle, -(width*(1-shift)))
+    return (x1, y1), (x2, y2)
+
+
+def polarCoord(pos, angle, distance):
+    x, y = pos
+    nx = x + (distance * math.cos(angle))
+    ny = y + (distance * math.sin(angle))
+    return nx, ny
+
+
+def pointOnACurve(pt1, bcp1, bcp2, pt2, value):
+    (x1, y1), (cx1, cy1), (cx2, cy2), (x2, y2) = pt1, bcp1, bcp2, pt2
+    # From Frederik Berlaen’s Outliner
+    dx = x1
+    cx = (cx1 - dx) * 3.0
+    bx = (cx2 - cx1) * 3.0 - cx
+    ax = x2 - dx - cx - bx
+    dy = y1
+    cy = (cy1 - dy) * 3.0
+    by = (cy2 - cy1) * 3.0 - cy
+    ay = y2 - dy - cy - by
+    mx = ax*(value)**3 + bx*(value)**2 + cx*(value) + dx
+    my = ay*(value)**3 + by*(value)**2 + cy*(value) + dy
+    return mx, my
+
+
+def remap(values, newMin=0, newMax=1):
+    initDelta = values[-1] - values[0]
+    if initDelta == 0:
+        return values
+    newDelta = newMax - newMin
+    for i, v in enumerate(values):
+        ratio = v / initDelta
+        new = newMin + (newDelta * ratio)
+        values[i] =  new
+    return values
+
+
+def curveIntervals(params, pace=10):
+    a1, h1, h2, a2 = params
+    l = 0
+    c = 1
+    intervals = [0]
+    ax, ay = a1
+    bx, by = h1
+    cx, cy = h2
+    dx, dy = a2
+    # define an arbitrary number of steps that’s likely to be inferior to the size of a pixel/grid unit
+    delta = int(hypot(dx-ax, dy-ay) * 1.5)
+    if delta != 0:
+        for i in range(delta+1):
+            t = i/delta
+            x, y = pointOnACurve((ax, ay), (bx, by), (cx, cy), (dx, dy), t)
+            if i > 0:
+                l += hypot(x-px, y-py)
+                if l >= c * pace:
+                    intervals.append(t)
+                    c += 1
+            px, py = x, y
+        intervals = remap(intervals)
+    return intervals, l
+
+
+def bezierTangent(a, b, c, d, t):
+    # Implementation of http://stackoverflow.com/questions/4089443/find-the-tangent-of-a-point-on-a-cubic-bezier-curve-on-an-iphone
+    return (-3*(1-t)**2 * a) + (3*(1-t)**2 * b) - (6*t*(1-t) * b) - (3*t**2 * c) + (6*t*(1-t) * c) + (3*t**2 * d)
+
+
+def firstDerivative(pt1, bcp1, bcp2, pt2, value):
+    (x1, y1), (cx1, cy1), (cx2, cy2), (x2, y2) = pt1, bcp1, bcp2, pt2
+    mx = bezierTangent(x1, cx1, cx2, x2, value)
+    my = bezierTangent(y1, cy1, cy2, y2, value)
+    return mx, my
+
+
+
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
+
