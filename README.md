@@ -137,7 +137,7 @@ DotPen
 ------
 
 ```python
-from fontPens.stepPen import dotGlyph
+from fontPens.dotPen import dotGlyph
 
 g = CurrentGlyph()
 g.prepareUndo('dot glyph')
